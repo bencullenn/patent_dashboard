@@ -292,7 +292,7 @@ server <- function(input, output, session) {
       output$comp_chart <- renderPlot({
         generateChartCompChart()
       })
-    },
+    }
     ignoreNULL = FALSE
   )
 
