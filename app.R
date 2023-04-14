@@ -293,7 +293,6 @@ server <- function(input, output, session) {
         generateChartCompChart()
       })
     }
-    ignoreNULL = FALSE
   )
 
   # Trends Analysis chart output
@@ -302,8 +301,7 @@ server <- function(input, output, session) {
       output$comp_chart <- renderPlot({
         generateTrendChart()
       })
-    },
-    ignoreNULL = FALSE
+    }
   })
 
   # Load data when server starts
