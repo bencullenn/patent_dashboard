@@ -5,11 +5,11 @@ library(ggplot2)
 library(tidyverse)
 library(data.table)
 
+
 # Enable auto reload and
 options(shiny.autoreload = TRUE)
 options(shiny.autoreload.pattern = glob2rx("*.R, *.htm, *.html, *.js, *.css, *.png, *.jpg, *.jpeg, *.gif"))
 options(shiny.autoreload.interval = 500)
-
 
 # Define the UI for the dashboard
 ui <- dashboardPage(
@@ -51,12 +51,12 @@ ui <- dashboardPage(
               selectInput(
                 "patent_code_input",
                 "Patent Codes",
-                choices = c("B60L5/", "Option 2", "Option 3")
+                choices = unique_cpc_group, multiple = T, width = '100%'
               ),
               selectInput(
                 "patent_subcode_input",
                 "Patent Subcodes",
-                choices = c("04", "18", "Option 3")
+                choices = unique_cpc_group, multiple = T, width = '100%'
               ),
               selectInput(
                 "comp_graph_type_input",
@@ -89,12 +89,12 @@ ui <- dashboardPage(
               selectInput(
                 "comp_input1",
                 "Patent Codes",
-                choices = c("B60L5/", "Option 2", "Option 3")
+                choices = unique_cpc_group, multiple = T, width = '100%'
               ),
               selectInput(
                 "comp_input2",
                 "Patent Subcodes",
-                choices = c("04", "18", "Option 3")
+                choices = unique_cpc_group, multiple = T, width = '100%'
               ),
               selectInput(
                 "comp_input3",
@@ -127,10 +127,10 @@ server <- function(input, output, session) {
     # patent <- fread('g_patent_2012_2021.csv')
     # assignee <- fread('g_assignee_disambiguated_2012_2021.csv')
     # cpc <- fread('g_cpc_current_2012_2021.csv')
-
+    
     # Convert patent_id to character
     # cpc$patent_id <- as.character(cpc$patent_id)
-
+   
     # Filter the cpc codes
     # dt <-
     #  cpc %>% filter(grepl(
@@ -143,8 +143,10 @@ server <- function(input, output, session) {
     # dt <- merge(dt, patent, by = 'patent_id')
     # dt <- merge(dt, assignee, by = 'patent_id')*/
     dt <- fread("filtered_data.csv")
+    choices <- load("unique_cpc_group.Rdata")
     # Return the merged data table
     return(dt)
+    return(choices)
   }
 
   generateTotalPatentsChart <- function(patent_id) {
@@ -155,16 +157,14 @@ server <- function(input, output, session) {
       summarize(total = uniqueN(patent_id)) %>%
       arrange(desc(total)) %>%
       slice(1:10) # Select the top 10 companies
-
     chart <- ggplot(totals, aes(x = disambig_assignee_organization, y = total)) +
       geom_bar(stat = "identity", fill = "steelblue") +
       theme_minimal() +
       labs(title = "Total Patents", x = "Company", y = "Number of Patents") +
       theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better readability
-
     return(chart)
   }
-
+  
   generateCGRChart <- function(patent_id) {
     # Get top 10 companies
     totals <- dt %>%
@@ -174,11 +174,11 @@ server <- function(input, output, session) {
       arrange(desc(total)) %>%
       slice(1:10)
     totals <- totals[order(totals$total, decreasing = T), ] %>% slice(1:10)
-
+    
     # Calculate 5 year CAGR for top 10 companies
-
+    
     cagr <- data.frame(expand.grid(year = 2017:2021, disambig_assignee_organization = totals$disambig_assignee_organization))
-
+    
     temp <- dt %>%
       filter(disambig_assignee_organization %in% totals$disambig_assignee_organization) %>%
       group_by(year = year(patent_date), disambig_assignee_organization) %>%
@@ -200,11 +200,10 @@ server <- function(input, output, session) {
       theme_minimal() +
       labs(title = "Patent CAGR", x = "Company", y = "CAGR %") +
       theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better readability
-
+    
     return(chart)
   }
-
-
+  
   generateAvgClaimsChart <- function(patent_id) {
     # Get top 10 companies
     totals <-
@@ -216,10 +215,11 @@ server <- function(input, output, session) {
           uniqueN(patent_id)
       ) %>%
       arrange(desc(total)) %>%
-      slice(1:10)
-    totals <-
-      totals[order(totals$total, decreasing = T), ] %>% slice(1:10)
 
+      slice(1:100)
+    totals <-
+      totals[order(totals$total, decreasing = T), ] %>% slice(1:100)
+    
     # Calculate avg claim count for top 10 companies
     claims <- dt %>%
       filter(disambig_assignee_organization %in% totals$disambig_assignee_organization) %>%
@@ -250,7 +250,6 @@ server <- function(input, output, session) {
   generateMap <- function(patent_id) {
     
   }
-
   generateChartCompChart <- reactive({
     data <- data.frame(x = 1:10, y = rnorm(10))
     if (input$comp_graph_type_input == "Total Patents") {
@@ -262,6 +261,19 @@ server <- function(input, output, session) {
     }
   })
   
+
+  
+  # Update the plot when the analyze button is clicked
+  observeEvent(input$comp_analyze,
+               {
+                 output$comp_chart <- renderPlot({
+                   generateChartCompChart()
+                 })
+               },
+               ignoreNULL = FALSE
+  )
+  
+
   generateTrendChart <- reactive({
     data <- data.frame(x = 1:10, y = rnorm(10))
     if (input$comp_graph_type_input == "Timeline") {
