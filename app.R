@@ -11,6 +11,44 @@ options(shiny.autoreload = TRUE)
 options(shiny.autoreload.pattern = glob2rx("*.R, *.htm, *.html, *.js, *.css, *.png, *.jpg, *.jpeg, *.gif"))
 options(shiny.autoreload.interval = 500)
 
+load_data <- function() {
+  # Read the CSV files
+  # patent <- fread('g_patent_2012_2021.csv')
+  # assignee <- fread('g_assignee_disambiguated_2012_2021.csv')
+  # cpc <- fread('g_cpc_current_2012_2021.csv')
+  
+  # Convert patent_id to character
+  # cpc$patent_id <- as.character(cpc$patent_id)
+  
+  # Filter the cpc codes
+  # dt <-
+  #  cpc %>% filter(grepl(
+  #   pattern = 'B60L',
+  #  x = cpc$cpc_group,
+  # ignore.case = TRUE
+  # ))
+  
+  # Merge with patents and assignee
+  # dt <- merge(dt, patent, by = 'patent_id')
+  # dt <- merge(dt, assignee, by = 'patent_id')*/
+  dt <- fread("filtered_data.csv")
+  # Return the merged data table
+  return(dt)
+}
+
+load_choices <- function() {
+  load("unique_cpc_group.Rdata")
+  return(load("unique_cpc_group.Rdata"))
+}
+
+# Load data when server starts
+dt <- load_data()
+load("unique_cpc_group.Rdata") # Load the RData file
+object_name <- load("unique_cpc_group.Rdata") # Get the name of the loaded object
+unique_cpc_group <- get(object_name) 
+
+
+
 # Define the UI for the dashboard
 ui <- dashboardPage(
   dashboardHeader(title = "Patent Dashboard"),
@@ -122,33 +160,9 @@ ui <- dashboardPage(
 
 # Define the server logic
 server <- function(input, output, session) {
-  load_data <- function() {
-    # Read the CSV files
-    # patent <- fread('g_patent_2012_2021.csv')
-    # assignee <- fread('g_assignee_disambiguated_2012_2021.csv')
-    # cpc <- fread('g_cpc_current_2012_2021.csv')
-    
-    # Convert patent_id to character
-    # cpc$patent_id <- as.character(cpc$patent_id)
-   
-    # Filter the cpc codes
-    # dt <-
-    #  cpc %>% filter(grepl(
-    #   pattern = 'B60L',
-    #  x = cpc$cpc_group,
-    # ignore.case = TRUE
-    # ))
 
-    # Merge with patents and assignee
-    # dt <- merge(dt, patent, by = 'patent_id')
-    # dt <- merge(dt, assignee, by = 'patent_id')*/
-    dt <- fread("filtered_data.csv")
-    choices <- load("unique_cpc_group.Rdata")
-    # Return the merged data table
-    return(dt)
-    return(choices)
-  }
-
+  
+  
   generateTotalPatentsChart <- function(patent_id) {
     totals <-
       dt %>%
@@ -248,8 +262,33 @@ server <- function(input, output, session) {
   }
   
   generateMap <- function(patent_id) {
+    dt_state <- dt %>% group_by(disambig_state,state_fips) %>% summarise(n=uniqueN(patent_id))
     
+    l <- list(color = toRGB("white"), width = 2)
+    g <- list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+    fig <- plot_geo(dt_state, locationmode = 'USA-states')
+    fig <- fig %>% add_trace(
+      z = ~n, 
+      text = ~disambig_state, 
+      locations = ~disambig_state,
+      color = ~n, 
+      colors = 'Blues'
+    )
+    fig <- fig %>% colorbar(title = "Count of patents")
+    fig <- fig %>% layout(
+      title = 'Non-Gasoline Vehicle Patents Granted by State',
+      geo = g
+    )
+    
+    fig
   }
+  
+  
   generateChartCompChart <- reactive({
     data <- data.frame(x = 1:10, y = rnorm(10))
     if (input$comp_graph_type_input == "Total Patents") {
@@ -303,10 +342,8 @@ server <- function(input, output, session) {
       })
     }
   })
-
-  # Load data when server starts
-  dt <- load_data()
 }
+
 
 # Run the Shiny app
 shinyApp(ui, server)
